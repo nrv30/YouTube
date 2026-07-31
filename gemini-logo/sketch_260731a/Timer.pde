@@ -18,6 +18,10 @@ class Timer {
     }
   }
   
+  public float getPercentElapsed() {
+    return (float)framesElapsed / maxFrames;
+  }
+  
   public void cleanTimer() {
     framesElapsed = 0;
   }
