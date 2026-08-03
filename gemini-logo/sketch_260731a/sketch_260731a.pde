@@ -1,15 +1,29 @@
-float tau = 2*PI; //<>// //<>// //<>//
+enum PHASE {
+  INIT,
+  FLOWER,
+  ELL,
+  HEX,
+  CIRCLE
+};
+
+PHASE phase = PHASE.INIT;
 int fps = 24;
-Timer timer = new Timer(1*fps);
+Timer initTimer = new Timer(1*fps);
+Timer tweenTimer = new Timer(1*fps);
 Timer spinTimer = new Timer(2*fps);
 int currShape = 0;
 PShape[] shapes;
+PShape ghost;
 float circleMaxRadius = 200;
+PImage img;
+int samples = 102; // has to be divisible by 6 because stupid hexagon
+
 
 void setup() {
+   pixelDensity(1);
   frameRate(fps);
-  size(800, 800);
-
+  size(800, 800, P2D);
+  
   shapes = new PShape[4];
   int shapesCounter = 0;
   
@@ -17,37 +31,19 @@ void setup() {
   translate(width/2, height/2);
   scale(1, -1);
   
-  // has to be divisible by 6 because stupid hexagon
-  int samples = 102; 
-  
   PShape flower = createShape();
   flower.beginShape();
   flower.fill(0xFFFF0000);
-  for (int i = 0; i < samples; ++i) {
-    float t = (float)i / samples;
-    float angle = t * tau;
-    float radius = (0.95 - 0.05 * cos(8 * angle)) * circleMaxRadius;
-    float x = radius * cos(angle);
-    float y = radius * sin(angle);
-    flower.vertex(x, y);
-  }
+  drawFlower(flower, circleMaxRadius, samples);
   flower.endShape();
   shapes[shapesCounter++] = flower;
   
-  PShape ellipseSh = createShape();
-  ellipseSh.beginShape();
-  float xRad = 0.9 * circleMaxRadius;
-  float yRad = 1.1 * circleMaxRadius;
-  ellipseSh.fill(0xFFFF0000);
-  for (int i = 0; i < samples; ++i) {
-    float t = (float)i / samples;
-    float angle = t * tau;
-    float x = xRad * cos(angle);
-    float y = yRad * sin(angle);
-    ellipseSh.vertex(x, y);
-  }
-  ellipseSh.endShape();
-  shapes[shapesCounter++] = ellipseSh;
+  PShape el = createShape();
+  el.beginShape();
+  el.fill(0xFFFF0000);
+  drawEllipse(el, 0.9 * circleMaxRadius, 1.1 * circleMaxRadius, samples);
+  el.endShape();
+  shapes[shapesCounter++] = el;
   
   // todo: rounded corners
   // just kidding I'm not implementing that it's too hard
@@ -74,20 +70,14 @@ void setup() {
   PShape circle = createShape();
   circle.beginShape();
   circle.fill(0xFFFF0000);
-  for (int i = 0; i < samples; ++i) {
-    float t = (float)i / samples;
-    float angle = t * tau;
-    float x = circleMaxRadius * cos(angle);
-    float y = circleMaxRadius * sin(angle);
-    circle.vertex(x, y);
-  }
+  drawEllipse(circle, circleMaxRadius, circleMaxRadius, samples);
   circle.endShape();
   shapes[shapesCounter++] = circle;
   
   popMatrix();
-  assert(shapes[0].getVertexCount() == shapes[1].getVertexCount());
-  assert(shapes[1].getVertexCount() == shapes[2].getVertexCount());
-  assert(shapes[2].getVertexCount() == shapes[3].getVertexCount());
+  //assert(shapes[0].getVertexCount() == shapes[1].getVertexCount());
+  //assert(shapes[1].getVertexCount() == shapes[2].getVertexCount());
+  //assert(shapes[2].getVertexCount() == shapes[3].getVertexCount());
 }
 
 void draw() {
@@ -96,30 +86,92 @@ void draw() {
   translate(width/2, height/2);
   scale(-1, -1);
   
-  float t = (float)timer.framesElapsed / timer.maxFrames;
-  float t1 = (float)spinTimer.framesElapsed / spinTimer.maxFrames;
-  println(t1);
-  
-  beginShape();
-  rotate(t1*tau);
-  fill(0xFFFF0000);
-  for (int i = 0; i < shapes[currShape].getVertexCount(); ++i) {
-    PVector start = shapes[currShape].getVertex(i);
-    PVector end = shapes[currShape + 1].getVertex(i);
-    float x = lerp(start.x, end.x, t);
-    float y = lerp(start.y, end.y, t);
-    vertex(x, y);
+  if (phase != PHASE.INIT) {
+    float t = (float)tweenTimer.framesElapsed / tweenTimer.maxFrames; //<>//
+    float t1 = (float)spinTimer.framesElapsed / spinTimer.maxFrames;
+    //println(t1);
+    
+    PShape tweenShape = createShape();
+    tweenShape.beginShape();
+    tweenShape.fill(0xFFFF0000);
+    for (int i = 0; i < shapes[currShape].getVertexCount(); ++i) {
+      PVector start = shapes[currShape].getVertex(i);
+      PVector end = shapes[currShape + 1].getVertex(i);
+      float x = lerp(start.x, end.x, t);
+      float y = lerp(start.y, end.y, t);
+      tweenShape.vertex(x, y);
+    }
+    tweenShape.endShape(); //<>//
+    tweenShape.rotate(t1*TWO_PI);
+      
+    shape(tweenShape, 0, 0);
+    
+    if (tweenTimer.updateTimer()) {
+      currShape++;
+    }
+    if (currShape == 3)
+      noLoop();
+    spinTimer.updateTimer();
+  } else {
+    float t = (float)initTimer.framesElapsed / initTimer.maxFrames;
+    PShape flower = createShape();
+    
+    flower.beginShape();
+    flower.fill(0xFFFF0000);
+    drawFlower(flower, lerp(0, circleMaxRadius, t), samples);
+    flower.endShape();
+    
+    shape(flower);
+    
+    if (initTimer.updateTimer()) {
+      phase = PHASE.FLOWER;
+    }
   }
-  endShape();
-  //shape(shapes[2], 0, 0)
+  //shape(ghost);
+  
   popMatrix();
+
+//  pushMatrix();
+//  translate(width/2 - img.width/2, height/2 - img.height/2);
+//  // scale(1, -1);
+
+//  noStroke();
+//  beginShape();
+//  texture(img);
+//  textureMode(NORMAL);
   
-  if (timer.updateTimer()) {
-    currShape++;
+//  vertex(0, 0, 0, 0);
+//  vertex(img.width, 0, 1, 0);
+//  vertex(img.width, img.height, 1, 1);
+//  vertex(0, img.height, 0, 1);
+//  rotate(t1*tau);
+//  endShape(CLOSE);
+
+  
+//  popMatrix();
+  
+  //image(img, width/2 - imageWidth/2, height/2 - imageHeight/2, imageWidth, imageHeight);
+}
+
+void drawFlower(PShape flower, float maxRadius, int samplesCount) {
+  for (int i = 0; i < samplesCount; ++i) {
+    float t = (float)i / samplesCount;
+    float angle = t * TWO_PI;
+    float radius = (0.95 - 0.05 * cos(8 * angle)) * maxRadius;
+    float x = radius * cos(angle);
+    float y = radius * sin(angle);
+    flower.vertex(x, y);
   }
-  if (currShape == 3)
-    noLoop();
-  spinTimer.updateTimer();
+}
+
+void drawEllipse(PShape el, float xRad, float yRad, int samplesCount) {
+  for (int i = 0; i < samplesCount; ++i) {
+    float t = (float)i / samplesCount;
+    float angle = t * TWO_PI;
+    float x = xRad * cos(angle);
+    float y = yRad * sin(angle);
+    el.vertex(x, y);
+  }
 }
 
 void drawHexSegment(PShape hexagon, PVector[] corners, int corner, int samplesCount) {
