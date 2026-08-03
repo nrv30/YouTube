@@ -11,19 +11,20 @@ int fps = 24;
 Timer initTimer = new Timer(1*fps);
 Timer tweenTimer = new Timer(1*fps);
 Timer spinTimer = new Timer(2*fps);
+int samples = 102; // has to be divisible by 6 because of hexagon
+float circleMaxRadius = 200;
 int currShape = 0;
 PShape[] shapes;
-PShape ghost;
-float circleMaxRadius = 200;
+PShape astroid;
 PImage img;
-int samples = 102; // has to be divisible by 6 because stupid hexagon
-
+color blue = color(24, 130, 253);
+color darkGray = color(73, 73, 73);
 
 void setup() {
-   pixelDensity(1);
+  pixelDensity(1);
   frameRate(fps);
   size(800, 800, P2D);
-  
+    
   shapes = new PShape[4];
   int shapesCounter = 0;
   
@@ -31,22 +32,27 @@ void setup() {
   translate(width/2, height/2);
   scale(1, -1);
   
+  noStroke();
+  astroid = createShape();
+  astroid.beginShape();
+  astroid.fill(darkGray);
+  drawAstroid(astroid, circleMaxRadius/2, samples);
+  astroid.endShape();
+  
   PShape flower = createShape();
   flower.beginShape();
-  flower.fill(0xFFFF0000);
+  flower.fill(blue);
   drawFlower(flower, circleMaxRadius, samples);
   flower.endShape();
   shapes[shapesCounter++] = flower;
   
   PShape el = createShape();
   el.beginShape();
-  el.fill(0xFFFF0000);
+  el.fill(blue);
   drawEllipse(el, 0.9 * circleMaxRadius, 1.1 * circleMaxRadius, samples);
   el.endShape();
   shapes[shapesCounter++] = el;
   
-  // todo: rounded corners
-  // just kidding I'm not implementing that it's too hard
   PShape hexagon = createShape();
   PVector corners[] = new PVector[6];
   corners[0] = new PVector(circleMaxRadius * cos(PI/6), circleMaxRadius * sin(PI/6));
@@ -58,7 +64,7 @@ void setup() {
   }
     
   hexagon.beginShape();
-  hexagon.fill(0xFFFF0000);
+  hexagon.fill(blue);
   int samplesPerSegment = samples / 6;
   for (int i = 0; i < 6; ++i) {
     drawHexSegment(hexagon, corners, i, samplesPerSegment);
@@ -69,31 +75,28 @@ void setup() {
   
   PShape circle = createShape();
   circle.beginShape();
-  circle.fill(0xFFFF0000);
+  circle.fill(blue);
   drawEllipse(circle, circleMaxRadius, circleMaxRadius, samples);
   circle.endShape();
   shapes[shapesCounter++] = circle;
   
   popMatrix();
-  //assert(shapes[0].getVertexCount() == shapes[1].getVertexCount());
-  //assert(shapes[1].getVertexCount() == shapes[2].getVertexCount());
-  //assert(shapes[2].getVertexCount() == shapes[3].getVertexCount());
 }
 
 void draw() {
-  background(0x000000);
+  background(0xFFFFFFFF);
   pushMatrix();
   translate(width/2, height/2);
   scale(-1, -1);
   
+  PShape astroidCopy = createShape();
   if (phase != PHASE.INIT) {
-    float t = (float)tweenTimer.framesElapsed / tweenTimer.maxFrames; //<>//
+    float t = (float)tweenTimer.framesElapsed / tweenTimer.maxFrames;
     float t1 = (float)spinTimer.framesElapsed / spinTimer.maxFrames;
-    //println(t1);
     
     PShape tweenShape = createShape();
     tweenShape.beginShape();
-    tweenShape.fill(0xFFFF0000);
+    tweenShape.fill(blue);
     for (int i = 0; i < shapes[currShape].getVertexCount(); ++i) {
       PVector start = shapes[currShape].getVertex(i);
       PVector end = shapes[currShape + 1].getVertex(i);
@@ -105,6 +108,8 @@ void draw() {
     tweenShape.rotate(t1*TWO_PI);
       
     shape(tweenShape, 0, 0);
+    copyShape(astroid, astroidCopy, 0xFFFFFFFF);
+    shape(astroidCopy, 0, 0);
     
     if (tweenTimer.updateTimer()) {
       currShape++;
@@ -113,44 +118,47 @@ void draw() {
       noLoop();
     spinTimer.updateTimer();
   } else {
-    float t = (float)initTimer.framesElapsed / initTimer.maxFrames;
+    float t = (float)initTimer.framesElapsed / initTimer.maxFrames; //<>//
+    t = pow(t, 2);
     PShape flower = createShape();
     
     flower.beginShape();
-    flower.fill(0xFFFF0000);
+    flower.fill(blue);
     drawFlower(flower, lerp(0, circleMaxRadius, t), samples);
     flower.endShape();
-    
     shape(flower);
+    
+    color c = lerpColor(darkGray, 0xFFFFFFFF, t);
+    copyShape(astroid, astroidCopy, c);
+    astroidCopy.rotate(t*PI);
+    shape(astroidCopy, 0, 0);
     
     if (initTimer.updateTimer()) {
       phase = PHASE.FLOWER;
     }
-  }
-  //shape(ghost);
-  
+  }  
   popMatrix();
+}
 
-//  pushMatrix();
-//  translate(width/2 - img.width/2, height/2 - img.height/2);
-//  // scale(1, -1);
+void copyShape(PShape src, PShape copy, color c) {
+  copy.setFill(c);
+  copy.beginShape();
+  for (int i = 0; i < src.getVertexCount(); ++i) {
+    PVector v = src.getVertex(i);
+    copy.vertex(v.x, v.y);
+  }
+  copy.endShape();
+}
 
-//  noStroke();
-//  beginShape();
-//  texture(img);
-//  textureMode(NORMAL);
-  
-//  vertex(0, 0, 0, 0);
-//  vertex(img.width, 0, 1, 0);
-//  vertex(img.width, img.height, 1, 1);
-//  vertex(0, img.height, 0, 1);
-//  rotate(t1*tau);
-//  endShape(CLOSE);
-
-  
-//  popMatrix();
-  
-  //image(img, width/2 - imageWidth/2, height/2 - imageHeight/2, imageWidth, imageHeight);
+// https://en.wikipedia.org/wiki/Astroid
+void drawAstroid(PShape astroid, float a, int samplesCount) {
+  for (int i = 0; i < samplesCount; ++i) {
+    float t = (float)i / samplesCount;
+    float angle = t * TWO_PI;
+    float x = a * pow(cos(angle), 3);
+    float y = a * pow(sin(angle), 3);
+    astroid.vertex(x, y);
+  }
 }
 
 void drawFlower(PShape flower, float maxRadius, int samplesCount) {
